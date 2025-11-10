@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dateline Acara Organisasi</title>
+  <style>
+    :root{
+      --bg:#f6f8fb; --card:#ffffff; --accent:#0066cc; --muted:#6b7280;
+      --success:#10b981; --danger:#ef4444;
+      font-family: Inter, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#f6fbff 0%, #f6f8fb 100%);color:#0f172a;padding:24px}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .sub{color:var(--muted);font-size:13px}
+    .container{max-width:1000px;margin:0 auto}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .btn{
+      background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;
+      box-shadow:0 6px 18px rgba(3,102,214,0.12);
+    }
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(3,102,214,0.12);box-shadow:none}
+    .search{padding:8px 10px;border-radius:8px;border:1px solid #e6edf8;background:#fff;min-width:200px}
+    .timeline{margin-top:18px;display:grid;gap:12px}
+    .date-group{display:grid;grid-template-columns:140px 1fr;gap:12px;align-items:start}
+    .date-badge{background:linear-gradient(180deg,#fff 0%, #eef7ff 100%);padding:10px;border-radius:12px;border:1px solid #e6f0ff;text-align:center;font-weight:700}
+    .cards{display:grid;gap:10px}
+    .card{background:var(--card);padding:14px;border-radius:12px;border:1px solid #eef2f7;box-shadow:0 6px 18px rgba(15,23,42,0.04);display:flex;justify-content:space-between;gap:12px}
+    .card .left{flex:1}
+    .card h3{margin:0 0 6px 0;font-size:16px}
+    .meta{color:var(--muted);font-size:13px;margin-bottom:8px}
+    .desc{color:#111827;font-size:14px}
+    .tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+    .tag{font-size:12px;padding:6px 8px;border-radius:999px;background:#f1f5f9;color:#0f172a}
+    .card .actions{display:flex;gap:8px;align-items:center}
+    .chip{padding:6px 10px;border-radius:10px;border:1px solid #e6eef8;font-size:13px}
+    .small{font-size:12px;color:var(--muted)}
+    /* modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:60}
+    .modal{background:var(--card);padding:18px;border-radius:12px;width:100%;max-width:680px;border:1px solid #e8f0ff}
+    form.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+    input[type=text],input[type=date],input[type=time],textarea,select{
+      width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef8;background:#fff
+    }
+    textarea{min-height:90px;resize:vertical}
+    .modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+    .empty{padding:28px;background:#fff;border-radius:12px;border:1px dashed #e6eef8;color:var(--muted);text-align:center}
+    .utility{display:flex;gap:8px;align-items:center}
+    .icon-btn{background:transparent;border:0;padding:6px;border-radius:8px;cursor:pointer}
+    .import-input{display:none}
+    @media (max-width:720px){
+      .date-group{grid-template-columns:1fr;gap:8px}
+      form.grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Dateline Acara Organisasi</h1>
+        <div class="sub">Lihat jadwal & kelola acara — PRAGATI Funfest sudah tersedia. Admin dapat menambah acara baru.</div>
+      </div>
+      <div class="controls">
+        <input id="search" class="search" placeholder="Cari (judul, tag, lokasi)..." />
+        <div class="utility">
+          <button id="addBtn" class="btn">+ Tambah Acara</button>
+          <button id="exportBtn" class="btn ghost">Export JSON</button>
+          <label class="btn ghost" for="importFile" style="cursor:pointer">Import JSON</label>
+          <input id="importFile" class="import-input" type="file" accept=".json" />
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div id="timeline" class="timeline" aria-live="polite"></div>
+      <div id="empty" class="empty" style="display:none">Belum ada acara. Klik "Tambah Acara" untuk membuat.</div>
+    </main>
+  </div>
+
+  <!-- Modal Tambah/Edit -->
+  <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal" role="document">
+      <h2 id="modalTitle">Tambah Acara</h2>
+      <form id="eventForm">
+        <div class="grid">
+          <div>
+            <label for="title">Judul</label>
+            <input id="title" name="title" type="text" required placeholder="Contoh: PRAGATI Funfest" />
+          </div>
+          <div>
+            <label for="location">Lokasi</label>
+            <input id="location" name="location" type="text" placeholder="Contoh: Aula Sekolah / Lapangan" />
+          </div>
+
+          <div>
+            <label for="date">Tanggal</label>
+            <input id="date" name="date" type="date" required />
+          </div>
+          <div>
+            <label for="time">Waktu</label>
+            <input id="time" name="time" type="time" />
+          </div>
+
+          <div style="grid-column:1/3">
+            <label for="description">Deskripsi</label>
+            <textarea id="description" name="description" placeholder="Ringkasan acara, pengisi acara, dsb."></textarea>
+          </div>
+
+          <div>
+            <label for="tags">Tags (pisahkan dengan koma)</label>
+            <input id="tags" name="tags" type="text" placeholder="Contoh: PRAGATI, Funfest, Seni" />
+          </div>
+
+          <div>
+            <label for="isFeatured">Tandai Featured</label>
+            <select id="isFeatured" name="isFeatured">
+              <option value="0">Tidak</option>
+              <option value="1">Ya</option>
+            </select>
+          </div>
+        </div>
+
+        <input type="hidden" id="eventId" />
+        <div class="modal-footer">
+          <button type="button" id="closeModal" class="btn ghost">Batal</button>
+          <button type="submit" class="btn">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    /* ---------- Utilities ---------- */
+    const qs = (s, el=document) => el.querySelector(s);
+    const qsa = (s, el=document) => Array.from(el.querySelectorAll(s));
+
+    /* ---------- Data handling (localStorage) ---------- */
+    const STORAGE_KEY = 'dateline_acara_v1';
+
+    function loadEvents(){
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return [];
+        return JSON.parse(raw, (k,v) => v);
+      } catch(e){
+        console.error('Gagal load events', e);
+        return [];
+      }
+    }
+    function saveEvents(arr){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+    }
+    function addEvent(event){
+      const arr = loadEvents();
+      arr.push(event);
+      saveEvents(arr);
+    }
+    function updateEvent(id, updated){
+      const arr = loadEvents();
+      const idx = arr.findIndex(e => e.id === id);
+      if(idx>=0){ arr[idx] = updated; saveEvents(arr); return true; }
+      return false;
+    }
+    function deleteEvent(id){
+      const arr = loadEvents().filter(e => e.id !== id);
+      saveEvents(arr);
+    }
+
+    /* ---------- Rendering ---------- */
+    const timelineEl = qs('#timeline');
+    const emptyEl = qs('#empty');
+
+    function formatDateISOToIndo(isoDate){
+      const d = new Date(isoDate);
+      return d.toLocaleDateString('id-ID', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+    }
+    function formatTime(t){
+      if(!t) return '';
+      const [hh,mm] = t.split(':');
+      return `${hh}:${mm}`;
+    }
+
+    function render(events){
+      // sort by date asc then time
+      events.sort((a,b)=>{
+        if(a.date===b.date){
+          const ta = a.time||'23:59', tb = b.time||'23:59';
+          return ta.localeCompare(tb);
+        }
+        return a.date.localeCompare(b.date);
+      });
+
+      timelineEl.innerHTML = '';
+      if(events.length===0){
+        emptyEl.style.display = 'block';
+        return;
+      } else emptyEl.style.display = 'none';
+
+      // group by date
+      const groups = events.reduce((acc, ev) => {
+        (acc[ev.date] = acc[ev.date] || []).push(ev);
+        return acc;
+      }, {});
+
+      for(const date of Object.keys(groups)){
+        const group = groups[date];
+        const dateGroup = document.createElement('div');
+        dateGroup.className = 'date-group';
+        dateGroup.innerHTML = `
+          <div class="date-badge">
+            <div style="font-size:14px">${new Date(date).toLocaleDateString('id-ID',{day:'2-digit', month:'short'})}</div>
+            <div class="small" style="margin-top:6px">${new Date(date).toLocaleDateString('id-ID',{weekday:'long'})}</div>
+          </div>
+          <div class="cards"></div>
+        `;
+        const cards = dateGroup.querySelector('.cards');
+        for(const ev of group){
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `
+            <div class="left">
+              <h3>${escapeHTML(ev.title)} ${ev.isFeatured? '<span class="chip">FEATURED</span>':''}</h3>
+              <div class="meta">
+                <span>${formatDateISOToIndo(ev.date)}</span>
+                ${ev.time? ' • <span>'+escapeHTML(formatTime(ev.time))+'</span>' : ''}
+                ${ev.location? ' • Lokasi: <strong>'+escapeHTML(ev.location)+'</strong>' : ''}
+              </div>
+              <div class="desc">${escapeHTML(ev.description || '')}</div>
+              <div class="tags">${(ev.tags||[]).map(t=>'<span class="tag">'+escapeHTML(t.trim())+'</span>').join('')}</div>
+            </div>
+            <div class="actions">
+              <button class="icon-btn" title="Edit" data-id="${ev.id}" data-action="edit">✏️</button>
+              <button class="icon-btn" title="Hapus" data-id="${ev.id}" data-action="delete">🗑️</button>
+            </div>
+          `;
+          cards.appendChild(card);
+        }
+        timelineEl.appendChild(dateGroup);
+      }
+    }
+
+    // basic escaping for innerHTML
+    function escapeHTML(str){
+      if(!str) return '';
+      return String(str).replace(/[&<>"']/g, (m)=>{
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m];
+      });
+    }
+
+    /* ---------- Initial demo data (only if no data yet) ---------- */
+    function ensureDemoData(){
+      const arr = loadEvents();
+      if(arr.length>0) return;
+      const demo = [
+        {
+          id: 'pragati-'+Date.now(),
+          title: 'PRAGATI Funfest',
+          date: (new Date(Date.now() + 7*24*60*60*1000)).toISOString().slice(0,10), // satu minggu dari sekarang
+          time: '09:00',
+          location: 'Lapangan Sekolah',
+          description: 'Acara tahunan PRAGATI: lomba, bazaar, penampilan seni, dan panggung hiburan.',
+          tags: ['PRAGATI','Funfest','Panggung'],
+          isFeatured: 1
+        },
+        {
+          id: 'raker-'+(Date.now()+1),
+          title: 'Rapat Kerja Divisi',
+          date: (new Date(Date.now() + 3*24*60*60*1000)).toISOString().slice(0,10),
+          time: '15:00',
+          location: 'Ruang OSIS',
+          description: 'Pembahasan program kerja semester depan.',
+          tags: ['Raker','OSIS'],
+          isFeatured: 0
+        }
+      ];
+      saveEvents(demo);
+    }
+
+    /* ---------- Modal / Form actions ---------- */
+    const modal = qs('#modal');
+    const addBtn = qs('#addBtn');
+    const closeModal = qs('#closeModal');
+    const modalTitle = qs('#modalTitle');
+    const form = qs('#eventForm');
+
+    function openModal(mode='add', eventData=null){
+      modal.style.display = 'flex';
+      if(mode==='add'){
+        modalTitle.textContent = 'Tambah Acara';
+        form.reset();
+        qs('#eventId').value = '';
+      } else {
+        modalTitle.textContent = 'Edit Acara';
+        qs('#eventId').value = eventData.id;
+        qs('#title').value = eventData.title || '';
+        qs('#location').value = eventData.location || '';
+        qs('#date').value = eventData.date || '';
+        qs('#time').value = eventData.time || '';
+        qs('#description').value = eventData.description || '';
+        qs('#tags').value = (eventData.tags||[]).join(', ');
+        qs('#isFeatured').value = eventData.isFeatured ? '1' : '0';
+      }
+    }
+    function closeModalFn(){
+      modal.style.display = 'none';
+    }
+
+    /* ---------- Events ---------- */
+    addBtn.addEventListener('click', ()=> openModal('add'));
+    closeModal.addEventListener('click', closeModalFn);
+    modal.addEventListener('click', (e)=> { if(e.target===modal) closeModalFn(); });
+
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const id = qs('#eventId').value || ('id-'+Date.now());
+      const eventObj = {
+        id,
+        title: qs('#title').value.trim(),
+        location: qs('#location').value.trim(),
+        date: qs('#date').value,
+        time: qs('#time').value,
+        description: qs('#description').value.trim(),
+        tags: qs('#tags').value ? qs('#tags').value.split(',').map(t=>t.trim()).filter(Boolean) : [],
+        isFeatured: Number(qs('#isFeatured').value)
+      };
+      if(!eventObj.title || !eventObj.date){
+        alert('Judul dan tanggal wajib diisi.');
+        return;
+      }
+      const existing = loadEvents().find(ev=>ev.id===id);
+      if(existing){
+        updateEvent(id, eventObj);
+      } else {
+        addEvent(eventObj);
+      }
+      renderWithFilter();
+      closeModalFn();
+    });
+
+    // handle edit/delete via delegation
+    timelineEl.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-action]');
+      if(!btn) return;
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      if(action==='edit'){
+        const ev = loadEvents().find(x=>x.id===id);
+        if(ev) openModal('edit', ev);
+      } else if(action==='delete'){
+        if(confirm('Hapus acara ini? Tindakan tidak dapat dibatalkan.')){
+          deleteEvent(id);
+          renderWithFilter();
+        }
+      }
+    });
+
+    /* ---------- Search / filter ---------- */
+    const searchInput = qs('#search');
+    function renderWithFilter(){
+      const term = searchInput.value.trim().toLowerCase();
+      let events = loadEvents();
+      if(term){
+        events = events.filter(ev=>{
+          const searchable = (ev.title+' '+(ev.description||'')+' '+(ev.location||'')+' '+(ev.tags||[]).join(' ')).toLowerCase();
+          return searchable.includes(term);
+        });
+      }
+      render(events);
+    }
+    searchInput.addEventListener('input', () => renderWithFilter());
+
+    /* ---------- Export / Import JSON ---------- */
+    const exportBtn = qs('#exportBtn');
+    const importFile = qs('#importFile');
+
+    exportBtn.addEventListener('click', ()=>{
+      const data = loadEvents();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'dateline_acara_export.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    importFile.addEventListener('change', (evt)=>{
+      const file = evt.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if(!Array.isArray(data)) throw new Error('Format JSON tidak valid (harus array).');
+          // basic validation & normalize: ensure id/title/date exist
+          const clean = data.filter(d => d && d.title && d.date).map(d => ({
+            id: d.id || ('id-'+Date.now()+Math.random()),
+            title: String(d.title),
+            date: String(d.date).slice(0,10),
+            time: d.time || '',
+            location: d.location || '',
+            description: d.description || '',
+            tags: Array.isArray(d.tags) ? d.tags : (d.tags ? String(d.tags).split(',').map(t=>t.trim()) : []),
+            isFeatured: Number(d.isFeatured || 0)
+          }));
+          // Merge: append imported to existing
+          const existing = loadEvents();
+          const merged = existing.concat(clean);
+          saveEvents(merged);
+          renderWithFilter();
+          alert('Import selesai. '+clean.length+' acara ditambahkan.');
+        } catch(err){
+          alert('Gagal mengimpor: ' + err.message);
+        } finally {
+          importFile.value = '';
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    /* ---------- Simple escape for XSS safety on display (already used) ---------- */
+
+    /* ---------- Init ---------- */
+    ensureDemoData();
+    renderWithFilter();
+
+    // optional: keyboard shortcut "n" to add
+    window.addEventListener('keydown', (e)=>{
+      if(e.key==='n' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); openModal('add'); }
+    });
+
+    /* ---------- Tips for admin (developer) ----------
+      - Data disimpan di localStorage browser. Untuk reset, buka console:
+        localStorage.removeItem('dateline_acara_v1');
+      - Untuk menyimpan server-side, hubungkan endpoint dan ganti fungsi loadEvents/saveEvents.
+      - Import/Export menerima file JSON format array objek acara.
+    ---------------------------------------------- */
+  </script>
+</body>
+</html>
